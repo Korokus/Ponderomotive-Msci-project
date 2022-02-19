@@ -3,17 +3,11 @@ import numpy as np
 import random as rand
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
-import os
-from matplotlib import animation
-from IPython import display
-#How the enhancement varies with different resonance conditions
-#Allow for selection from an angle from the x axis
-
 #Input parameters in SI units
 sphere_radius = 10e-9
 wavelength = 500e-9
-amplitude = 10
-sphere_permittivity = -6.25
+amplitude = 50
+sphere_permittivity = - 2.0001
 surrounding_permittivity = 1
 c = 299792458 
 e = 1.60217662e-19
@@ -65,14 +59,15 @@ def main():
     timestep_graph(electron_position, timestep,graph_field)
     #Creating a grid of x,y plots
     E2= np.vectorize(E)
-    nx,ny= 100,100 #level of discretisation
+    nx,ny= 1000,1000 #level of discretisation
     xr = np.linspace(-5*sphere_radius,5*sphere_radius,nx)
     yr = np.linspace(-5*sphere_radius,5*sphere_radius,ny)
     X,Y = np.meshgrid(xr,yr)
     plot_Ex = np.zeros((nx,ny))
     plot_Ey = np.zeros((nx,ny))
-    f1 = incident_field[t][0]
-    ex,ey = E2(x=X, y = Y,f1 = f1) 
+    f1 = current_field[0]
+    f2 = current_field[1]
+    ex,ey = E2(x=X, y = Y,f1 = f1, f2=f2) 
     plot_Ex = ex
     plot_Ey = ey
     fig = plt.figure()
@@ -84,16 +79,25 @@ def main():
     ax.set_aspect('equal')
     # Plot the streamlines with an appropriate colormap and arrow style
     color = 2 * np.log(np.hypot(plot_Ex, plot_Ey))
-    Q = ax.quiver(xr, yr, plot_Ex, plot_Ey, pivot = 'mid')
-    #plt.show()
-    #add the nanoparticle to the image
+    ax.streamplot(xr, yr, plot_Ex, plot_Ey, color=color, linewidth=0.2, cmap=plt.cm.inferno,
+    density=10, arrowstyle='->', arrowsize=0.5)
+    #add the nanoparticle
+    ax.add_artist(Circle((0,0),sphere_radius))
+    plt.savefig("electric field lines", dpi = 300, bbox_inches = 'tight')
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$y$')
+    ax.set_xlim(-3*sphere_radius,3*sphere_radius)
+    ax.set_ylim(-3*sphere_radius,3*sphere_radius)
+    ax.set_aspect('equal')
+    ax.set_aspect('equal')
+    enhancement2 = np.vectorize(enhancement)
+    Z = enhancement2(x=X, y = Y)
+    ax.contour(xr,yr,Z, 1000 , cmap = 'RdGy')
+    #plt.colorbar(ax = ax)
     #ax.add_artist(Circle((0,0),sphere_radius))
-    anim = animation.FuncAnimation(fig, update_quiver, fargs=(Q, X, Y, incident_field, E2),
-                               interval=500, blit=False)
-    fig.tight_layout()
-    # saving to m4 using ffmpeg writer
-    anim.save('Electric field.gif', fps = 60, dpi = 300)
-    plt.close()
+    plt.savefig("electric field lines density", dpi = 300, bbox_inches = 'tight')
 
 
 def inside_check(x,y,z):
@@ -103,10 +107,9 @@ def inside_check(x,y,z):
     else:
         return False
 #Returns the electric field for the quiver plot
-def E(x,y,f1):
+def E(x,y,f1,f2):
     z = 0
     r = math.sqrt((x**2) + (y**2))
-    
     if inside_check(x,y,z) == False: 
         Ex = (1 + ((sphere_permittivity - surrounding_permittivity)/(sphere_permittivity + 2* surrounding_permittivity)) * ((sphere_radius**3)/r**5) * (2* (x**2) -(y**2) - (z**2)))* f1
         Ey = ((sphere_permittivity - surrounding_permittivity)/(sphere_permittivity + 2* surrounding_permittivity)) * ((sphere_radius**3)/r**5) * (3*x*y) * f1
@@ -122,14 +125,27 @@ def electric_field(x,y,z,current_field):
     if inside_check(x,y,z) == False: 
         Ex = (1 + ((sphere_permittivity - surrounding_permittivity)/(sphere_permittivity + 2* surrounding_permittivity))
          * ((sphere_radius**3)/r**5) * (2* (x**2) -(y**2) - (z**2)))* current_field[0]
-        Ey = ((sphere_permittivity - surrounding_permittivity)/(sphere_permittivity + 2* surrounding_permittivity)) * ((sphere_radius**3)/r**5) * (3*x*y) * current_field[0]
-        Ez = ((sphere_permittivity - surrounding_permittivity)/(sphere_permittivity + 2* surrounding_permittivity)) * ((sphere_radius**3)/r**5) * (3*x*z) * current_field[0]
+        Ey = ((sphere_permittivity - surrounding_permittivity)/sphere_permittivity + 2* surrounding_permittivity) * ((sphere_radius**3)/r**5) * (3*x*y) * current_field[0]
+        Ez = ((sphere_permittivity - surrounding_permittivity)/sphere_permittivity + 2* surrounding_permittivity) * ((sphere_radius**3)/r**5) * (3*x*z) * current_field[0]
         return[Ex,Ey,Ez]
     if inside_check(x,y,z) == True:
         Ex = current_field[0] * (3*surrounding_permittivity/(sphere_permittivity + 2* surrounding_permittivity))
         Ey = 0
         Ez = 0
         return[Ex,Ey,Ez]
+#Function returns the enhancement of the electric field
+def enhancement(x,y):
+    z = 0
+    r = math.sqrt((x**2) + (y**2))
+    if inside_check(x,y,z) == False: 
+        Ex = (1 + ((sphere_permittivity - surrounding_permittivity)/(sphere_permittivity + 2* surrounding_permittivity)) * ((sphere_radius**3)/r**5) * (2* (x**2) -(y**2) - (z**2)))
+        Ey = ((sphere_permittivity - surrounding_permittivity)/(sphere_permittivity + 2* surrounding_permittivity)) * ((sphere_radius**3)/r**5) * (3*x*y)
+        return math.sqrt((Ex**2) + (Ey**2))
+    if inside_check(x,y,z) == True:
+        Ex = (3*surrounding_permittivity/(sphere_permittivity + 2* surrounding_permittivity))
+        Ey = 0
+        return math.sqrt((Ex**2) + (Ey**2))
+
 #function that plots different graphs
 def timestep_graph(electron_position,timestep,graph_field):
     timestep_for_graph = []
@@ -146,32 +162,21 @@ def timestep_graph(electron_position,timestep,graph_field):
     plt.figure(0)
     plt.plot(timestep_for_graph,xpos)
     plt.savefig("Xposition of electron.png", dpi = 300, bbox_inches = 'tight')
-    plt.close()
     plt.figure(1)
     plt.plot(timestep_for_graph,ypos)
     plt.savefig("Yposition of electron.png", dpi = 300, bbox_inches = 'tight')
-    plt.close()
     plt.figure(2)
     plt.plot(timestep_for_graph,zpos)
     plt.savefig("Zposition of electron.png", dpi = 300, bbox_inches = 'tight')
-    plt.close()
     plt.figure(3)
     plt.plot(timestep_for_graph,graph_field)
-    plt.savefig("electric field amplitude.png", dpi = 300, bbox_inches = 'tight')
-    plt.close()
+    plt.savefig("field position of electron.png", dpi = 300, bbox_inches = 'tight')
 
 #function calculates the timestep
 def interpolate():
     hertz = c/wavelength
     timestep = 1/(hertz * 10)
     return timestep
-
-#quiverplot animation
-def update_quiver(num,Q,X,Y,incident_field,E2):
-    f1 = incident_field[num][0]
-    ex,ey = E2(x=X, y = Y,f1 = f1)
-    Q.set_UVC(ex,ey)
-    return Q
 
 
 if __name__ == '__main__':
