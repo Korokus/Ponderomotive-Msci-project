@@ -4,7 +4,7 @@ import random as rand
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 #Input parameters in SI units
-sphere_radius = 10e-9
+sphere_radius = 50e-9
 wavelength = 500e-9
 amplitude = 50
 sphere_permittivity = - 2.0001
@@ -98,6 +98,18 @@ def main():
     #plt.colorbar(ax = ax)
     #ax.add_artist(Circle((0,0),sphere_radius))
     plt.savefig("electric field lines density", dpi = 300, bbox_inches = 'tight')
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$y$')
+    ax.set_xlim(-3*sphere_radius,3*sphere_radius)
+    ax.set_ylim(-3*sphere_radius,3*sphere_radius)
+    ax.set_aspect('equal')
+    ax.set_aspect('equal')
+    enhancement2 = np.vectorize(enhancement)
+    Z = enhancement2(x=X, y = Y)
+    ax.pcolormesh(xr,yr,Z)
+    plt.savefig("electric field lines density colormesh", dpi = 300, bbox_inches = 'tight')
 
 
 def inside_check(x,y,z):
@@ -131,7 +143,7 @@ def electric_field(x,y,z,current_field):
     if inside_check(x,y,z) == True:
         Ex = current_field[0] * (3*surrounding_permittivity/(sphere_permittivity + 2* surrounding_permittivity))
         Ey = 0
-        Ez = 0
+        Ez = 0 
         return[Ex,Ey,Ez]
 #Function returns the enhancement of the electric field
 def enhancement(x,y):
