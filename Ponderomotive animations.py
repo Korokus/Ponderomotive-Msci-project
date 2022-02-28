@@ -1,3 +1,4 @@
+from enum import auto
 import math
 import numpy as np
 import random as rand
@@ -11,6 +12,11 @@ from matplotlib import animation
 #add colourbars
 #run for more cycles
 
+#Add elipsoid 
+#Add trajectories
+#Add damping -have to figure it out. 
+#Write a project plan
+
 #Input parameters in SI units
 #sphere radius 50nm
 sphere_radius = 50e-9
@@ -19,18 +25,18 @@ wavelength = 500e-9
 #Amplitude V/m
 #1mw comfortable level -> 1 micron assuming some power density -> known flux
 amplitude = 1e5
-sphere_permittivity = -2.0001
+sphere_permittivity = -2.00001
 surrounding_permittivity = 1
 c = 299792458 
 e = 1.60217662e-19
 direction = [1,1,0]
-timesteps = 200
+timesteps = 500
 electron_mass = 9.10938356e-31
 omega = 2 * math.pi * c/ wavelength
 #setting phi and theta and r
 # theta [0,pi] phi [0,2pi]
 phi = 0
-theta = 0
+theta = math.pi/6
 #0.1 nm away from the sphere radius
 r = sphere_radius + 0.0000000001
 phi = phi%math.pi
@@ -105,20 +111,62 @@ def main():
     ax.set_xlim(-5*sphere_radius,5*sphere_radius)
     ax.set_ylim(-5*sphere_radius,5*sphere_radius)
     ax.set_aspect('equal')
+    ax.add_artist(Circle((0,0),sphere_radius,fill = False))
     # Plot the streamlines with an appropriate colormap and arrow style
     color = 2 * np.log(np.hypot(plot_Ex, plot_Ey))
     Q = ax.quiver(xr, yr, plot_Ex, plot_Ey, pivot = 'mid')
     #plt.show()
     #add the nanoparticle to the image
-    #ax.add_artist(Circle((0,0),sphere_radius))
+    #ax.add_artist(Circle((0,0),sphere_radius,fill = False))
     anim = animation.FuncAnimation(fig, update_quiver, fargs=(Q, X, Y, incident_field, E2),
                                interval=500, blit=False)
     fig.tight_layout()
     # saving to mp4 using ffmpeg writer
     anim.save('Electric field.gif', fps = 60, dpi = 300)
     plt.close()
-    
-
+    nx,ny= 1000,1000 #level of discretisation
+    xr = np.linspace(-5*sphere_radius,5*sphere_radius,nx)
+    yr = np.linspace(-5*sphere_radius,5*sphere_radius,ny)
+    X,Y = np.meshgrid(xr,yr)
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$y$')
+    ax.set_xlim(-3*sphere_radius,3*sphere_radius)
+    ax.set_ylim(-3*sphere_radius,3*sphere_radius)
+    ax.set_aspect('equal')
+    ax.set_aspect('equal')
+    enhancement2 = np.vectorize(enhancement)
+    Z = enhancement2(x=X, y = Y)
+    ax.pcolormesh(xr,yr,Z,shading = auto)
+    plt.savefig("electric field lines density colormesh", dpi = 300, bbox_inches = 'tight')
+    plt.close()
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$y$')
+    ax.set_xlim(-3*sphere_radius,3*sphere_radius)
+    ax.set_ylim(-3*sphere_radius,3*sphere_radius)
+    ax.set_aspect('equal')
+    ax.set_aspect('equal')
+    enhancement2 = np.vectorize(enhancement_X)
+    Z = enhancement2(x=X, y = Y)
+    ax.pcolormesh(xr,yr,Z, shading = auto)
+    plt.savefig("electric field lines density colormesh X direction", dpi = 300, bbox_inches = 'tight')
+    plt.close()
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$y$')
+    ax.set_xlim(-3*sphere_radius,3*sphere_radius)
+    ax.set_ylim(-3*sphere_radius,3*sphere_radius)
+    ax.set_aspect('equal')
+    ax.set_aspect('equal')
+    enhancement2 = np.vectorize(enhancement_Y)
+    Z = enhancement2(x=X, y = Y)
+    ax.pcolormesh(xr,yr,Z,shading = auto)
+    plt.savefig("electric field lines density colormesh Y direction", dpi = 300, bbox_inches = 'tight')
+    plt.close()
 
 def inside_check(x,y,z):
     r = math.sqrt((x**2) + (y**2) + (z**2))
@@ -211,7 +259,39 @@ def update_quiver(num,Q,X,Y,incident_field,E2):
     ex,ey = E2(x=X, y = Y,f1 = f1)
     Q.set_UVC(ex,ey)
     return Q
-
-
+#calculates the enhancement of the field
+def enhancement(x,y):
+    z = 0
+    r = math.sqrt((x**2) + (y**2))
+    if inside_check(x,y,z) == False: 
+        Ex = (1 + ((sphere_permittivity - surrounding_permittivity)/(sphere_permittivity + 2* surrounding_permittivity)) * ((sphere_radius**3)/r**5) * (2* (x**2) -(y**2) - (z**2)))
+        Ey = ((sphere_permittivity - surrounding_permittivity)/(sphere_permittivity + 2* surrounding_permittivity)) * ((sphere_radius**3)/r**5) * (3*x*y)
+        return math.sqrt((Ex**2) + (Ey**2))
+    if inside_check(x,y,z) == True:
+        Ex = (3*surrounding_permittivity/(sphere_permittivity + 2* surrounding_permittivity))
+        Ey = 0
+        return math.sqrt((Ex**2) + (Ey**2))
+def enhancement_X(x,y):
+    z = 0
+    r = math.sqrt((x**2) + (y**2))
+    if inside_check(x,y,z) == False: 
+        Ex = (1 + ((sphere_permittivity - surrounding_permittivity)/(sphere_permittivity + 2* surrounding_permittivity)) * ((sphere_radius**3)/r**5) * (2* (x**2) -(y**2) - (z**2)))
+        Ey = 0
+        return math.sqrt((Ex**2) + (Ey**2))
+    if inside_check(x,y,z) == True:
+        Ex = (3*surrounding_permittivity/(sphere_permittivity + 2* surrounding_permittivity))
+        Ey = 0
+        return math.sqrt((Ex**2) + (Ey**2))
+def enhancement_Y(x,y):
+    z = 0
+    r = math.sqrt((x**2) + (y**2))
+    if inside_check(x,y,z) == False: 
+        Ex = 0
+        Ey = ((sphere_permittivity - surrounding_permittivity)/(sphere_permittivity + 2* surrounding_permittivity)) * ((sphere_radius**3)/r**5) * (3*x*y)
+        return math.sqrt((Ex**2) + (Ey**2))
+    if inside_check(x,y,z) == True:
+        Ex = 0
+        Ey = 0
+        return math.sqrt((Ex**2) + (Ey**2))
 if __name__ == '__main__':
     main()
