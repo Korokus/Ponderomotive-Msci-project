@@ -11,6 +11,8 @@ from matplotlib import animation
 #plot the x and y components of the colourplot
 #add colourbars
 #run for more cycles
+#plot for multiple angles
+#ADD COLOURBAR
 
 #Add elipsoid 
 #Add trajectories
@@ -30,13 +32,13 @@ surrounding_permittivity = 1
 c = 299792458 
 e = 1.60217662e-19
 direction = [1,1,0]
-timesteps = 500
+timesteps = 200
 electron_mass = 9.10938356e-31
 omega = 2 * math.pi * c/ wavelength
 #setting phi and theta and r
 # theta [0,pi] phi [0,2pi]
 phi = 0
-theta = math.pi/6
+theta = math.pi/4
 #0.1 nm away from the sphere radius
 r = sphere_radius + 0.0000000001
 phi = phi%math.pi
@@ -151,6 +153,7 @@ def main():
     ax.set_aspect('equal')
     enhancement2 = np.vectorize(enhancement_X)
     Z = enhancement2(x=X, y = Y)
+    print(Z)
     ax.pcolormesh(xr,yr,Z, shading = auto)
     plt.savefig("electric field lines density colormesh X direction", dpi = 300, bbox_inches = 'tight')
     plt.close()
@@ -246,6 +249,13 @@ def timestep_graph(electron_position,timestep,graph_field,electron_velocity):
     plt.plot(timestep_for_graph,zvel)
     plt.savefig("Zvelocity of electron.png", dpi = 300, bbox_inches = 'tight')
     plt.close()
+    plt.plot(xpos,ypos)
+    plt.savefig("X-Y trajectory of electron.png", dpi = 300, bbox_inches = 'tight')
+    plt.close()
+    plt.plot(xpos,zpos)
+    plt.savefig("X-Z trajectory of electron.png", dpi = 300, bbox_inches = 'tight')
+    plt.close()
+    
 
 #function calculates the timestep
 def interpolate():
