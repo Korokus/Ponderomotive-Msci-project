@@ -6,11 +6,13 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 import os
 from matplotlib import animation
+
 #How the enhancement varies with different resonance conditions
 
 #Add elipsoid
 #Add damping -have to figure it out.
 #Write a project plan
+#Consider only ellipsoids of revolution
 
 #Input parameters in SI units
 #sphere radius 50nm
@@ -20,23 +22,30 @@ wavelength = 500e-9
 #Amplitude V/m
 #1mw comfortable level -> 1 micron assuming some power density -> known flux
 amplitude = 1e5
-sphere_permittivity = -2.00001
+sphere_permittivity = -2.001
 surrounding_permittivity = 1
 c = 299792458
 e = 1.60217662e-19
+e_0 = 8.85418782e-12
 direction = [1, 1, 0]
 timesteps = 200
 electron_mass = 9.10938356e-31
 omega = 2 * math.pi * c / wavelength
-#setting phi and theta and r
-# theta [0,pi] phi [0,2pi]
+#setting phi and theta and r.  theta [0,pi] phi [0,2pi]
 phi = 0
 theta = math.pi/4
+
 #0.1 nm away from the sphere radius
 r = sphere_radius + 0.0000000001
 phi = phi % math.pi
 theta = theta % (2*math.pi)
 trajectories = 20
+
+#setting the radius of the radius for the ellisoid axis here we only consider where R_1 = R_2 
+#define R_1 and R_2 to be in the x-y plane and R_3 corresponds to the z plane
+R_1 =  50e-9
+R_3 =  20e-9
+
 
 def main():
     timestep = interpolate()
@@ -119,18 +128,37 @@ def main():
     ax.set_ylim(-5*sphere_radius, 5*sphere_radius)
     ax.set_aspect('equal')
     ax.add_artist(Circle((0, 0), sphere_radius, fill=False))
-    # Plot the streamlines with an appropriate colormap and arrow style
-    color = 2 * np.log(np.hypot(plot_Ex, plot_Ey))
     Q = ax.quiver(xr, yr, plot_Ex, plot_Ey, pivot='mid')
-    #plt.show()
-    #add the nanoparticle to the image
-    #ax.add_artist(Circle((0,0),sphere_radius,fill = False))
     anim = animation.FuncAnimation(fig, update_quiver, fargs=(Q, X, Y, incident_field, E2),
                                    interval=1000, blit=False)
     fig.tight_layout()
     # saving to mp4 using ffmpeg writer
     anim.save('Electric field.gif', fps=60, dpi=300)
     plt.close()
+    E2 = np.vectorize(E)
+    nx, ny = 1000, 1000  # level of discretisation
+    xr = np.linspace(-5*sphere_radius, 5*sphere_radius, nx)
+    yr = np.linspace(-5*sphere_radius, 5*sphere_radius, ny)
+    X, Y = np.meshgrid(xr, yr)
+    plot_Ex = np.zeros((nx, ny))
+    plot_Ey = np.zeros((nx, ny))
+    f1 = incident_field[t][0]
+    ex, ey = E2(x=X, y=Y, f1=f1)
+    plot_Ex = ex
+    plot_Ey = ey
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$y$')
+    ax.set_xlim(-5*sphere_radius,5*sphere_radius)
+    ax.set_ylim(-5*sphere_radius,5*sphere_radius)
+    ax.set_aspect('equal')
+    # Plot the streamlines with an appropriate colormap and arrow style
+    color = 2 * np.log(np.hypot(plot_Ex, plot_Ey))
+    ax.streamplot(xr, yr, plot_Ex, plot_Ey, color=color, linewidth=0.2, cmap=plt.cm.inferno,
+    density=5, arrowstyle='->', arrowsize=0.5)
+    ax.add_artist(Circle((0, 0), sphere_radius, fill=False))
+    plt.savefig("electric field lines streamplot",dpi=300, bbox_inches='tight')
     nx, ny = 1000, 1000  # level of discretisation
     xr = np.linspace(-5*sphere_radius, 5*sphere_radius, nx)
     yr = np.linspace(-5*sphere_radius, 5*sphere_radius, ny)
@@ -198,6 +226,14 @@ def main():
     plt.savefig("electric field lines density colormesh Y direction",
                 dpi=300, bbox_inches='tight')
     plt.close()
+
+
+    #Code for ellipsoidal particles
+
+    #Finding the L_factors for the different axis. 
+    L_factor_R1_R2 = L_factor_same(R_1,R_3)
+    L_factor_R3 = 1 - 2 * (L_factor_R1_R2)
+    print(L_factor_R1_R2*2 + L_factor_R3)
 
 
 def inside_check(x, y, z):
@@ -399,6 +435,29 @@ def positions(electron_position, graph_field, incident_field, electron_velocity,
                 electron_position[t+1][2] - electron_position[t-1][2]) / (2 * timestep)
     return electron_position, graph_field, electron_velocity
 
+def L_factor_same(R_1,R_3):
+    prefactor = R_3 * (R_1**2)/2
+    x = R_3**2
+    y = R_1**2
+    denominator = (x-y)**2
+    num_1 = (y-x)/math.sqrt(x)
+    num_2 = math.sqrt(y) * math.sqrt(1-x/y)
+    num_3 = math.acos(math.sqrt(x)/math.sqrt(y))
+    numerator = 2 * (num_1 -num_2*num_3)
+    return 2*prefactor * numerator/ denominator
+
+#Returns the electric field for the ellispoidal particle 
+def E_elispoid(L_factor_same, L_factor_diff,incident_field):
+    ellipsoid_field = np.zeros((timesteps, 3))
+    for t in range(timesteps -1):
+        current_field = incident_field[t]
+        P_x = e_0 * (sphere_permittivity - surrounding_permittivity) * ((surrounding_permittivity) * current_field[0])/(surrounding_permittivity + L_factor_same (sphere_permittivity - surrounding_permittivity))
+        P_y = e_0 * (sphere_permittivity - surrounding_permittivity) * ((surrounding_permittivity) * current_field[1])/(surrounding_permittivity + L_factor_same (sphere_permittivity - surrounding_permittivity))
+        P_z = e_0 * (sphere_permittivity - surrounding_permittivity) * ((surrounding_permittivity) * current_field[2])/(surrounding_permittivity + L_factor_diff (sphere_permittivity - surrounding_permittivity))
+        ellipsoid_field[t][0] = current_field[0] - L_factor_same* P_x/(e_0 * surrounding_permittivity)
+        ellipsoid_field[t][1] = current_field[1] - L_factor_same* P_y/(e_0 * surrounding_permittivity)
+        ellipsoid_field[t][2] = current_field[2] - L_factor_diff* P_z/(e_0 * surrounding_permittivity)
+    return ellipsoid_field
 
 
 if __name__ == '__main__':
