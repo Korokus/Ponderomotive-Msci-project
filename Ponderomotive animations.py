@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 import os
 from matplotlib import animation
-
+from mpmath import * 
 #How the enhancement varies with different resonance conditions
 
 #Add elipsoid
@@ -28,7 +28,7 @@ c = 299792458
 e = 1.60217662e-19
 e_0 = 8.85418782e-12
 direction = [1, 1, 0]
-timesteps = 200
+timesteps = 50000
 electron_mass = 9.10938356e-31
 omega = 2 * math.pi * c / wavelength
 #setting phi and theta and r.  theta [0,pi] phi [0,2pi]
@@ -41,9 +41,10 @@ phi = phi % math.pi
 theta = theta % (2*math.pi)
 trajectories = 20
 
-#setting the radius of the radius for the ellisoid axis here we only consider where R_1 = R_2 
+#setting the radius of the radius for the ellisoid axis here we only consider where R_1 = R_2 or R_2 = R_3
 #define R_1 and R_2 to be in the x-y plane and R_3 corresponds to the z plane
 R_1 =  50e-9
+R_2 =  50e-9
 R_3 =  20e-9
 
 
@@ -231,7 +232,7 @@ def main():
     #Code for ellipsoidal particles
 
     #Finding the L_factors for the different axis. 
-    L_factor_R1_R2 = L_factor_same(R_1,R_3)
+    L_factor_R1_R2 = L_factor_same_oblate(R_1,R_3)
     L_factor_R3 = 1 - 2 * (L_factor_R1_R2)
     print(L_factor_R1_R2*2 + L_factor_R3)
 
@@ -435,7 +436,7 @@ def positions(electron_position, graph_field, incident_field, electron_velocity,
                 electron_position[t+1][2] - electron_position[t-1][2]) / (2 * timestep)
     return electron_position, graph_field, electron_velocity
 
-def L_factor_same(R_1,R_3):
+def L_factor_same_oblate(R_1,R_3):
     prefactor = R_3 * (R_1**2)/2
     x = R_3**2
     y = R_1**2
@@ -458,6 +459,48 @@ def E_elispoid(L_factor_same, L_factor_diff,incident_field):
         ellipsoid_field[t][1] = current_field[1] - L_factor_same* P_y/(e_0 * surrounding_permittivity)
         ellipsoid_field[t][2] = current_field[2] - L_factor_diff* P_z/(e_0 * surrounding_permittivity)
     return ellipsoid_field
+
+
+
+def Xi(x,y,z):
+    h = math.sqrt(R_1**2 - R_2**2)
+    k = math.sqrt(R_1**2 - R_3**2)
+    a_1 = -((x**2)+(y**2)+(z**2)+(h**2)+(k**2))
+    a_2 = (x**2)*((h**2) + (k**2)) + (y**2)*(k**2) + (z**2)*(h**2) + (h**2)* (k**2)
+    a_3 = (x**2)*(h**2)*(k**2)
+    Q = ((a_1**2) - 3 * a_2) / 9
+    R = ((9*a_1*a_2) - (27 * a_3) - (2 * a_1**3))/54
+    theta = math.acos(R/math.sqrt(Q**3))
+    xi = 2 * math.sqrt(Q) * math.cos (theta/3) - (a_1/3)
+    return math.sqrt(xi)
+
+def oblate(xi):
+    x = R_1**2
+    y = R_3**2
+    num_1 = math.sqrt(xi + y)
+    denom_1 = math.atan(math.sqrt(xi + y)/math.sqrt(x-y))
+    num_2 = (xi + x) * (xi - y)
+    denom_2 = (x-y)**(3/2)
+    return (num_1/denom_1) + (num_2/denom_2)
+
+def prolate_indefinite(xi):
+    x = R_1**2
+    y = R_3**2
+    #note only defnined for abs (xi + y)/(y-x) < 1
+    num_1 = 2 * mpmath.hyp2f1(-0.5,1,0.5,(xi + y)/(y-x))
+    denom_1 = math.sqrt(xi + y) * (x - y)
+    return num_1/denom_1
+
+
+def prolate_definite(xi):
+    x = R_1**2
+    y = R_3**2
+    num_1 = x**(3/2)
+    num_2 = math.sqrt(1-y/x)
+    num_3 = math.acos(math.sqrt(y/x))
+    num_4 = math.sqrt(y) * (y - x)
+    denom = x * (x - y)**2
+    return (num_1 * num_2 * num_3 + num_4)/denom
 
 
 if __name__ == '__main__':
