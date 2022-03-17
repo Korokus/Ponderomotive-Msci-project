@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 import os
 from matplotlib import animation
-from mpmath import * 
+from mpmath import *
 #How the enhancement varies with different resonance conditions
 
 #Add elipsoid
@@ -43,9 +43,10 @@ trajectories = 20
 
 #setting the radius of the radius for the ellisoid axis here we only consider where R_1 = R_2 or R_2 = R_3
 #define R_1 and R_2 to be in the x-y plane and R_3 corresponds to the z plane
-R_1 =  50e-9
-R_2 =  50e-9
-R_3 =  20e-9
+#only define R_1 >= R_2 >= R_3
+R_1 =  10
+R_2 =  1
+R_3 =  1
 
 
 def main():
@@ -173,7 +174,7 @@ def main():
     Z = enhancement2(x=X, y=Y)
     plt.pcolormesh(xr, yr, Z)
     plt.colorbar()
-    angles = np.linspace(0,2*math.pi, trajectories)
+    angles = np.linspace(-math.pi/2,math.pi/2, trajectories)
     for i in range(trajectories -1):
         phi_trajectory = 0
         theta_trajectory = angles[i]
@@ -232,9 +233,56 @@ def main():
     #Code for ellipsoidal particles
 
     #Finding the L_factors for the different axis. 
-    L_factor_R1_R2 = L_factor_same_oblate(R_1,R_3)
-    L_factor_R3 = 1 - 2 * (L_factor_R1_R2)
-    print(L_factor_R1_R2*2 + L_factor_R3)
+    L_factor_R_1,L_factor_R_2,L_factor_R_3 = L_factor(R_1,R_2,R_3)
+    ellipsoid_field2 = np.vectorize(E_ellipsoid_outside)
+    timesteps2 = 20000
+    electron_position_ellipse = np.zeros((timesteps2, 3))
+    electron_velocity_ellipse = np.zeros((timesteps2, 3))
+    x = r * math.cos(theta)
+    y = r * math.cos(phi) * math.sin(theta)
+    z = r * math.sin(phi) * math.sin(theta)
+    electron_position_ellipse[0][0] = x
+    electron_position_ellipse[0][1] = y
+    electron_position_ellipse[0][2] = z
+    for t in range(timesteps2 - 1):
+        print(t)
+        current_field = incident_field[t]
+        field = E_ellipsoid_outside(
+            electron_position_ellipse[t][0], electron_position[t][1], electron_position[t][2], L_factor_R_1, L_factor_R_2, L_factor_R_3, current_field)
+        graph_field.append(field[0])
+        if t == 0:
+            electron_position_ellipse[1][0] = electron_position_ellipse[0][0] + \
+                (field[0] * e/electron_mass) * (timestep**2)
+            electron_position_ellipse[1][1] = electron_position_ellipse[0][1] + \
+                (field[1] * e/electron_mass) * (timestep**2)
+            electron_position_ellipse[1][2] = electron_position_ellipse[0][2] + \
+                (field[2] * e/electron_mass) * (timestep**2)
+        else:
+            electron_position_ellipse[t+1][0] = (2 * electron_position_ellipse[t][0]) - \
+                                         electron_position_ellipse[t-1][0] + (timestep**2) * (
+                                             field[0] * e/electron_mass)
+            electron_position_ellipse[t+1][1] = (2 * electron_position_ellipse[t][1]) - \
+                electron_position_ellipse[t-1][1] + \
+                (timestep**2) * (field[1] * e/electron_mass)
+            electron_position_ellipse[t+1][2] = (2 * electron_position_ellipse[t][2]) - \
+                electron_position_ellipse[t-1][2] + \
+                (timestep**2) * (field[2] * e/electron_mass)
+    
+    #calculating the velocity using the verlet algorithm
+    for t in range(timesteps2 - 1):
+        if t == 0:
+            electron_velocity_ellipse[0][0] = 0
+            electron_velocity_ellipse[0][1] = 0
+            electron_velocity_ellipse[0][2] = 0
+        else:
+            electron_velocity[t][0] = (
+                electron_position_ellipse[t+1][0] - electron_position_ellipse[t-1][0]) / (2 * timestep)
+            electron_velocity_ellipse[t][1] = (
+                electron_position_ellipse[t+1][1] - electron_position_ellipse[t-1][1]) / (2 * timestep)
+            electron_velocity_ellipse[t][2] = (
+                electron_position_ellipse[t+1][2] - electron_position_ellipse[t-1][2]) / (2 * timestep)
+    timestep_graph_ellipse(electron_position_ellipse,timesteps2,electron_velocity_ellipse,timestep)
+
 
 
 def inside_check(x, y, z):
@@ -334,6 +382,33 @@ def timestep_graph(electron_position, timestep, graph_field, electron_velocity):
     plt.savefig("X-Z trajectory of electron.png", dpi=300, bbox_inches='tight')
     plt.close()
 
+def timestep_graph_ellipse(electron_position, timesteps2, electron_velocity,timestep):
+    timestep_for_graph = []
+    xpos = []
+    ypos = []
+    zpos = []
+    xvel = []
+    yvel = []
+    zvel = []
+    temp = 0
+    for t in range(timesteps2-1):
+        timestep_for_graph.append(temp)
+        temp += timestep
+        xpos.append(electron_position[t][0])
+        ypos.append(electron_position[t][1])
+        zpos.append(electron_position[t][2])
+        xvel.append(electron_velocity[t][0])
+        yvel.append(electron_velocity[t][1])
+        zvel.append(electron_velocity[t][2])
+    plt.plot(timestep_for_graph, xpos)
+    plt.savefig("Xposition of electron ellipse.png", dpi=300, bbox_inches='tight')
+    plt.close()
+    plt.plot(timestep_for_graph, ypos)
+    plt.savefig("Yposition of electron ellipse.png", dpi=300, bbox_inches='tight')
+    plt.close()
+    plt.plot(timestep_for_graph, zpos)
+    plt.savefig("Zposition of electron ellipse.png", dpi=300, bbox_inches='tight')
+    plt.close()
 
 #function calculates the timestep
 def interpolate():
@@ -436,29 +511,68 @@ def positions(electron_position, graph_field, incident_field, electron_velocity,
                 electron_position[t+1][2] - electron_position[t-1][2]) / (2 * timestep)
     return electron_position, graph_field, electron_velocity
 
-def L_factor_same_oblate(R_1,R_3):
-    prefactor = R_3 * (R_1**2)/2
-    x = R_3**2
-    y = R_1**2
-    denominator = (x-y)**2
-    num_1 = (y-x)/math.sqrt(x)
-    num_2 = math.sqrt(y) * math.sqrt(1-x/y)
-    num_3 = math.acos(math.sqrt(x)/math.sqrt(y))
-    numerator = 2 * (num_1 -num_2*num_3)
-    return 2*prefactor * numerator/ denominator
+def L_factor(R_1,R_2,R_3):
+    if R_1 == R_2 > R_3:
+        L_factor_R_3 = prolate_definite(R_1,R_3)
+        L_factor_R_1 = 0.5 * (1-L_factor_R_3)
+        L_factor_R_2 = 0.5 * (1-L_factor_R_3)
+        
+    if R_1 > R_2 == R_3:
+        L_factor_R_1 = oblate_definite(R_1,R_3)
+        L_factor_R_2 = 0.5 * (1 - L_factor_R_1)
+        L_factor_R_3 = 0.5 * (1 - L_factor_R_1)
+
+    return L_factor_R_1,L_factor_R_2,L_factor_R_3
+
+        
 
 #Returns the electric field for the ellispoidal particle 
-def E_elispoid(L_factor_same, L_factor_diff,incident_field):
+def E_ellipsoid_inside(L_factor_R_1, L_factor_R_2,L_factor_R_3,incident_field):
     ellipsoid_field = np.zeros((timesteps, 3))
     for t in range(timesteps -1):
         current_field = incident_field[t]
-        P_x = e_0 * (sphere_permittivity - surrounding_permittivity) * ((surrounding_permittivity) * current_field[0])/(surrounding_permittivity + L_factor_same (sphere_permittivity - surrounding_permittivity))
-        P_y = e_0 * (sphere_permittivity - surrounding_permittivity) * ((surrounding_permittivity) * current_field[1])/(surrounding_permittivity + L_factor_same (sphere_permittivity - surrounding_permittivity))
-        P_z = e_0 * (sphere_permittivity - surrounding_permittivity) * ((surrounding_permittivity) * current_field[2])/(surrounding_permittivity + L_factor_diff (sphere_permittivity - surrounding_permittivity))
-        ellipsoid_field[t][0] = current_field[0] - L_factor_same* P_x/(e_0 * surrounding_permittivity)
-        ellipsoid_field[t][1] = current_field[1] - L_factor_same* P_y/(e_0 * surrounding_permittivity)
-        ellipsoid_field[t][2] = current_field[2] - L_factor_diff* P_z/(e_0 * surrounding_permittivity)
+        P_x = e_0 * (sphere_permittivity - surrounding_permittivity) * ((surrounding_permittivity) * current_field[0])/(surrounding_permittivity + L_factor_R_1 (sphere_permittivity - surrounding_permittivity))
+        P_y = e_0 * (sphere_permittivity - surrounding_permittivity) * ((surrounding_permittivity) * current_field[1])/(surrounding_permittivity + L_factor_R_2 (sphere_permittivity - surrounding_permittivity))
+        P_z = e_0 * (sphere_permittivity - surrounding_permittivity) * ((surrounding_permittivity) * current_field[2])/(surrounding_permittivity + L_factor_R_3 (sphere_permittivity - surrounding_permittivity))
+        ellipsoid_field[t][0] = current_field[0] - L_factor_R_1* P_x/(e_0 * surrounding_permittivity)
+        ellipsoid_field[t][1] = current_field[1] - L_factor_R_2* P_y/(e_0 * surrounding_permittivity)
+        ellipsoid_field[t][2] = current_field[2] - L_factor_R_3* P_z/(e_0 * surrounding_permittivity)
     return ellipsoid_field
+
+def E_ellipsoid_outside(x,y,z,L_factor_R_1,L_factor_R_2,L_factor_R_3,current_field):
+    prefactor = (R_1*R_2*R_3/2)* ((surrounding_permittivity - sphere_permittivity)/sphere_permittivity)
+    xi = Xi(x,y,z)
+    if R_1 == R_2 > R_3:
+        integral_x = oblate_indefinite(xi,R_1,R_3)
+        integral_y = oblate_indefinite(xi,R_1,R_3)
+        integral_z = prolate_indefinite(xi,R_1,R_3)
+    if R_1 > R_2 == R_3:
+        integral_x = prolate_indefinite(xi,R_1,R_3)
+        integral_y = prolate_indefinite(xi,R_1,R_3)
+        integral_z = oblate_indefinite(xi,R_1,R_3)
+    if ellipsoid_inside_check(x,y,z) == True:
+        E_x = (1 + prefactor * integral_x)/(1 + prefactor*L_factor_R_1) * current_field[0]
+        E_y = (1 + prefactor * integral_y)/(1 + prefactor*L_factor_R_2) * current_field[1]
+        E_z = (1 + prefactor * integral_z)/(1 + prefactor*L_factor_R_3) * current_field[2]
+    else:
+        E_x = current_field[0] / (prefactor * L_factor_R_1)
+        E_y = current_field[1] / (prefactor * L_factor_R_2)
+        E_z = current_field[2] / (prefactor * L_factor_R_3)
+    return [E_x,E_y,E_z]
+
+
+def ellipsoid_inside_check(x,y,z):
+    a = R_1 * 1e-9
+    b = R_2 * 1e-9
+    c = R_3 * 1e-9
+
+    if (x**2)/(a**2) + (y**2)/(b**2) + (z**2)/(c**2) > 1:
+        return True
+    else:
+        return False
+
+
+
 
 
 
@@ -474,33 +588,44 @@ def Xi(x,y,z):
     xi = 2 * math.sqrt(Q) * math.cos (theta/3) - (a_1/3)
     return math.sqrt(xi)
 
-def oblate(xi):
-    x = R_1**2
-    y = R_3**2
+
+
+def oblate_indefinite(xi,a,b):
+    x = a**2
+    y = b**2
     num_1 = math.sqrt(xi + y)
-    denom_1 = math.atan(math.sqrt(xi + y)/math.sqrt(x-y))
-    num_2 = (xi + x) * (xi - y)
+    num_2 = math.atan(math.sqrt(xi + y)/math.sqrt(x-y))
+    denom_1 = (xi + x) * (xi - y)
     denom_2 = (x-y)**(3/2)
     return (num_1/denom_1) + (num_2/denom_2)
 
-def prolate_indefinite(xi):
-    x = R_1**2
-    y = R_3**2
+def oblate_definite(a,b):
+    e = math.sqrt(1-b**2/a**2)
+    prefactor = -1/((a**3)*e**3)
+    num = 1+e 
+    denom = 1-e 
+    return prefactor *(2*e - math.log(num/denom))
+
+def prolate_indefinite(xi,a,b):
+    x = a**2
+    y = b**2
+    mp.dps = 25
+    mp.pretty = True
     #note only defnined for abs (xi + y)/(y-x) < 1
-    num_1 = 2 * mpmath.hyp2f1(-0.5,1,0.5,(xi + y)/(y-x))
+    num_1 = 2 * hyp2f1(-0.5,1,0.5,(xi + y)/(y-x))
     denom_1 = math.sqrt(xi + y) * (x - y)
     return num_1/denom_1
 
+def prolate_definite(a,c):
+    x = a**2
+    y = c**2
+    num_1 = math.sqrt(x-y)/c
+    num_2 = math.atan(math.sqrt(x-y)/c)
+    denom_1 = (x-y)**(3/2)
+    return 2 * (num_1 - num_2) / denom_1
 
-def prolate_definite(xi):
-    x = R_1**2
-    y = R_3**2
-    num_1 = x**(3/2)
-    num_2 = math.sqrt(1-y/x)
-    num_3 = math.acos(math.sqrt(y/x))
-    num_4 = math.sqrt(y) * (y - x)
-    denom = x * (x - y)**2
-    return (num_1 * num_2 * num_3 + num_4)/denom
+
+
 
 
 if __name__ == '__main__':
